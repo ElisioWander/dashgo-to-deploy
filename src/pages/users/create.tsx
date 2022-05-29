@@ -7,6 +7,10 @@ import { SideBar } from "../../Components/Sidebar";
 import * as Yup from 'yup'
 import { yupResolver } from '@hookform/resolvers/yup'
 import { useForm, SubmitHandler } from "react-hook-form";
+import { useMutation } from "react-query";
+import { api } from "../../services/axios";
+import { queryClient } from "../../services/queryClient";
+import { useRouter } from "next/router";
 
 interface CreateUserFormData {
   name: string;
@@ -28,14 +32,36 @@ const createUserSchema = Yup.object({
 });
 
 export default function CreateUser() {
+  const router = useRouter()
+
   const { handleSubmit, formState: { errors, isSubmitting }, register } = useForm({
     resolver: yupResolver(createUserSchema)
   })
 
-  const handleCreateUser: SubmitHandler<CreateUserFormData> = async (value) => {
-    await new Promise(resolve => setTimeout(resolve, 2000))
+  const createUser = useMutation(async (user: CreateUserFormData) => {
+    const response = await api.post('/users', {
+      user: {
+        ...user,
+        created_at: new Date(),
+      }
+    })
 
-    console.log(value)
+    return response.data.user
+  }, {
+    //quando um usuário é criado, o cache deve ser apagado para que o novo
+    //usuário seja renderizado em tela e armazenado em cache novamente
+    onSuccess: () => {
+      queryClient.invalidateQueries('usersCache')
+    }
+  })
+
+  const handleCreateUser: SubmitHandler<CreateUserFormData> = async (values) => {
+    //passando os dados do usuário que foram digitados nos imputs para dentro da 
+    //função que irá enviar os dados para o backend
+    await createUser.mutateAsync(values)
+
+    //redirecionar o usuário após a criação
+    router.push('/users')
   }
 
   return (

@@ -5,6 +5,7 @@ import {
   Flex,
   Heading,
   Icon,
+  Link,
   Spinner,
   Table,
   Tbody,
@@ -15,12 +16,15 @@ import {
   Tr,
   useBreakpointValue,
 } from "@chakra-ui/react";
-import Link from "next/link";
+import NextLink from "next/link";
+import { useState } from "react";
 import { RiAddLine } from "react-icons/ri";
 import { Header } from "../../Components/Header";
 import { Pagination } from "../../Components/Pagination/Pagination";
 import { SideBar } from "../../Components/Sidebar";
+import { api } from "../../services/axios";
 import { useUsers } from "../../services/hooks/useUsers";
+import { queryClient } from "../../services/queryClient";
 
 type User = {
   id: string;
@@ -30,13 +34,29 @@ type User = {
 }
 
 export default function UsersList() {
+  const [page, setPage] = useState(1)
+
   //useQuery é o método que irá fazer a requisição para o backend e armazenar os dados em cache
   //useQuery recebe como primeiro parâmetro uma chave que servirá para identificar e acessar os dados em cache
   //como segundo parâmetro ele recebe uma função que retorna os dados
   //o retorno "data" é o equeivalente ao retorno users
-  const { data, isLoading, error, isFetching } = useUsers()
+  const { data, isLoading, error, isFetching } = useUsers(page)
   //useUsers é um hook que nós criamos para cuidar da parte de pegar e tratar os dados
 
+  //fazer um carregamento prévio dos dados
+  //no momento em que passar o mouse por cima do nome do usuário, o seu ID
+  //será enviado para a função handlePrefetchUser, em seguido enviado para o queryCLient.prefetchQuery
+  //para ser armazenado na chave de cache "user", e sempre que for auterado o "userId", um novo prefetch
+  //será realizado
+  async function handlePrefetchUser(userId: string) {
+    await queryClient.prefetchQuery(["user", userId], async () => {
+      const response = await api.get(`/users/${userId}`)
+
+      return response.data
+    }, {
+      staleTime: 1000 * 60 * 10 // 10 minutos
+    })
+  }
 
   const isWideVersion = useBreakpointValue({
     base: false,
@@ -60,7 +80,7 @@ export default function UsersList() {
             </Flex>
             </Heading>
             <Box>
-              <Link href="/users/create" passHref >
+              <NextLink href="/users/create" passHref >
                 <Button
                   as="a"
                   size="sm"
@@ -71,7 +91,7 @@ export default function UsersList() {
                 >
                   Criar Novo
                 </Button>
-              </Link>
+              </NextLink>
             </Box>
           </Flex>
           
@@ -97,14 +117,16 @@ export default function UsersList() {
                 </Tr>
               </Thead>
               <Tbody>
-                {data.map(user => (
+                {data.users.map(user => (
                   <Tr key={user.id} >
                   <Td px={["4", "4", "6"]}>
                     <Checkbox colorScheme="pink" />
                   </Td>
                   <Td>
                     <Box>
-                      <Text fontWeight="bold">{user.name}</Text>
+                      <Link color="purple.400" onMouseEnter={() => handlePrefetchUser(user.id)} >
+                        <Text fontWeight="bold">{user.name}</Text>
+                      </Link>
 
                       <Text fontSize="sm" color="gray.300">
                         {user.email}
@@ -117,7 +139,11 @@ export default function UsersList() {
               </Tbody>
               </Table>
 
-              <Pagination />
+              <Pagination 
+                totalCountOfRegisters={data.totalCount}
+                currentPage={page}
+                onPageChange={setPage}
+              />
             </>
           ) }
 

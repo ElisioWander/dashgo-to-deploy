@@ -8,10 +8,22 @@ type User = {
   createdAt: string;
 }
 
+type GetUsersResponse = {
+  totalCount: number;
+  users: User[];
+}
+
 //separar a função de pegar os dados dos usuário para poder aproveitar a funcionalidade sem estar
 //diretamente atrelada ao useQuery
-export async function getUsers(): Promise<User[]> {
-  const response = await api.get("/users");
+export async function getUsers(page: number): Promise<GetUsersResponse> {
+  const {data, headers} = await api.get("users", {
+    params: {
+      page
+    }
+  });
+
+  const totalCount = Number(headers['x-total-count'])
+
   //formatação dos dados
   //o useQuery sempre retorna os dados dentro de um array
   /* response {
@@ -24,7 +36,7 @@ export async function getUsers(): Promise<User[]> {
       ]
   }
     */
-  const users = response.data.users.map(user => {
+  const users = data.users.map(user => {
     return {
       id: user.id,
       name: user.name,
@@ -37,15 +49,20 @@ export async function getUsers(): Promise<User[]> {
     };
   });
 
-  return users;
+  console.log(totalCount)
+
+  return {
+    users,
+    totalCount
+  };
 }
 
-export function useUsers() {
+export function useUsers(page: number) {
   //useQuery é o método que irá fazer a requisição para o backend e armazenar os dados em cache
   //useQuery recebe como primeiro parâmetro uma chave que servirá para identificar e acessar os dados em cache
   //como segundo parâmetro ele recebe uma função que retorna os dados
   //o retorno "data" é o equeivalente ao retorno users
-  return useQuery("usersCache", getUsers, {
+  return useQuery(["usersCache", page], () => getUsers(page), {
     staleTime: 1000 * 5,
   });
 }
